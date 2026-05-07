@@ -1,0 +1,24 @@
+{
+  "name": "intelligent-agent",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "generate-doc": "node generate-doc.js"
+  },
+  "dependencies": {
+    "docx": "^9.6.1",
+    "express": "^5.2.1",
+    "html2pdf.js": "^0.14.0",
+    "markdown-it": "^14.1.1",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^6.0.2",
+    "vite": "^6.0.5"
+  }
+}
