@@ -92,7 +92,7 @@ iflowdeznt/
 
 | API | 方法 | 路径 | 功能 |
 |-----|------|------|------|
-| 聊天接口 | POST | `/api/chat` | 智能对话 |
+| 聊天接口 | POST | `/api/resume/chat` | 智能对话 |
 | 简历扩写接口 | POST | `/api/expand-resume` | 简历内容扩写 |
 | 保存数据接口 | POST | `/api/import-data` | 保存导入数据 |
 | 读取数据接口 | GET | `/api/import-data` | 读取导入数据 |

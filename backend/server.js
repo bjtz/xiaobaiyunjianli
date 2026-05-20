@@ -30,7 +30,7 @@ const schoolData = {
 // 本地存储模拟（实际项目中可使用数据库）
 let importDataStore = null;
 
-app.post('/api/chat', async (req, res) => {
+app.post('/api/resume/chat', async (req, res) => {
   try {
     const { messages, localContext } = req.body;
     
@@ -74,12 +74,14 @@ ${localContext || '暂无本地资料'}
     // 移除所有Markdown格式的星号
     response = response.replace(/\*\*(.*?)\*\*/g, '$1');
 
-    res.json({ response });
+    res.json({ code: 0, data: { response }, message: '' });
   } catch (error) {
     console.error('API Error:', error);
+    const fallback = generateLocalResponse(req.body.messages, req.body.localContext);
     res.status(500).json({ 
-      error: '请求失败，请检查API配置',
-      fallback: generateLocalResponse(req.body.messages, req.body.localContext)
+      code: 500,
+      data: { response: fallback },
+      message: '请求失败，请检查API配置'
     });
   }
 });
@@ -165,93 +167,97 @@ function generateLocalResponse(messages, localContext) {
   }
 }
 
-app.get('/api/health', (req, res) => {
+app.get('/api/resume/health', (req, res) => {
   const hasZhipuAI = !!process.env.ZHIPUAI_API_KEY && process.env.ZHIPUAI_API_KEY !== 'your_zhipuai_api_key_here';
   const hasOpenAI = !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here';
   res.json({ 
-    status: 'ok', 
-    hasApiKey: hasZhipuAI || hasOpenAI,
-    currentProvider: hasZhipuAI ? 'zhipuai' : (hasOpenAI ? 'openai' : 'local')
+    code: 0, 
+    data: {
+      status: 'ok', 
+      hasApiKey: hasZhipuAI || hasOpenAI,
+      currentProvider: hasZhipuAI ? 'zhipuai' : (hasOpenAI ? 'openai' : 'local')
+    },
+    message: ''
   });
 });
 
 // 数据管理API
-app.post('/api/import-data', (req, res) => {
+app.post('/api/resume/import-data', (req, res) => {
   try {
     const data = req.body;
     importDataStore = data;
     console.log('保存导入数据成功');
-    res.json({ success: true, message: '数据保存成功' });
+    res.json({ code: 0, data: {}, message: '数据保存成功' });
   } catch (error) {
     console.error('保存数据失败:', error);
-    res.status(500).json({ success: false, error: '保存数据失败' });
+    res.status(500).json({ code: 500, data: {}, message: '保存数据失败' });
   }
 });
 
-app.get('/api/import-data', (req, res) => {
+app.get('/api/resume/import-data', (req, res) => {
   try {
     console.log('读取导入数据');
-    res.json({ success: true, data: importDataStore });
+    res.json({ code: 0, data: importDataStore, message: '' });
   } catch (error) {
     console.error('读取数据失败:', error);
-    res.status(500).json({ success: false, error: '读取数据失败' });
+    res.status(500).json({ code: 500, data: {}, message: '读取数据失败' });
   }
 });
 
-app.delete('/api/import-data', (req, res) => {
+app.delete('/api/resume/import-data', (req, res) => {
   try {
     importDataStore = null;
     console.log('重置导入数据成功');
-    res.json({ success: true, message: '数据已重置' });
+    res.json({ code: 0, data: {}, message: '数据已重置' });
   } catch (error) {
     console.error('重置数据失败:', error);
-    res.status(500).json({ success: false, error: '重置数据失败' });
+    res.status(500).json({ code: 500, data: {}, message: '重置数据失败' });
   }
 });
 
 // 学校和专业数据API
-app.get('/api/schools', (req, res) => {
+app.get('/api/resume/schools', (req, res) => {
   try {
     const schools = Object.keys(schoolData);
-    res.json({ success: true, schools });
+    res.json({ code: 0, data: { schools }, message: '' });
   } catch (error) {
     console.error('获取学校列表失败:', error);
-    res.status(500).json({ success: false, error: '获取学校列表失败' });
+    res.status(500).json({ code: 500, data: {}, message: '获取学校列表失败' });
   }
 });
 
-app.get('/api/colleges', (req, res) => {
+app.get('/api/resume/colleges', (req, res) => {
   try {
     const { school } = req.query;
     if (!school) {
-      return res.status(400).json({ success: false, error: '缺少school参数' });
+      return res.status(400).json({ code: 400, data: {}, message: '缺少school参数' });
     }
     
     const colleges = schoolData[school] ? Object.keys(schoolData[school]) : [];
-    res.json({ success: true, colleges });
+    res.json({ code: 0, data: { colleges }, message: '' });
   } catch (error) {
     console.error('获取学院列表失败:', error);
-    res.status(500).json({ success: false, error: '获取学院列表失败' });
+    res.status(500).json({ code: 500, data: {}, message: '获取学院列表失败' });
   }
 });
 
-app.get('/api/majors', (req, res) => {
+app.get('/api/resume/majors', (req, res) => {
   try {
     const { school, college } = req.query;
     if (!school || !college) {
-      return res.status(400).json({ success: false, error: '缺少school或college参数' });
+      return res.status(400).json({ code: 400, data: {}, message: '缺少school或college参数' });
     }
     
     const majors = schoolData[school]?.[college] || [];
-    res.json({ success: true, majors });
+    res.json({ code: 0, data: { majors }, message: '' });
   } catch (error) {
     console.error('获取专业列表失败:', error);
-    res.status(500).json({ success: false, error: '获取专业列表失败' });
+    res.status(500).json({ code: 500, data: {}, message: '获取专业列表失败' });
   }
 });
 
 // 智能扩写API
-app.post('/api/expand-resume', async (req, res) => {
+app.post('/api/resume/expand-resume', async (req, res) => {
   try {
     const { message, localContext } = req.body;
     
@@ -296,13 +302,14 @@ ${localContext || '暂无本地资料'}
     // 移除所有Markdown格式的星号
     response = response.replace(/\*\*(.*?)\*\*/g, '$1');
 
-    res.json({ success: true, response });
+    res.json({ code: 0, data: { response }, message: '' });
   } catch (error) {
     console.error('简历扩写失败:', error);
+    const fallback = generateLocalExpandResponse(req.body.message, req.body.localContext);
     res.status(500).json({ 
-      success: false,
-      error: '扩写失败，请检查API配置',
-      fallback: generateLocalExpandResponse(req.body.message, req.body.localContext)
+      code: 500,
+      data: { response: fallback },
+      message: '扩写失败，请检查API配置'
     });
   }
 });

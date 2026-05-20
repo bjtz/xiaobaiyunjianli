@@ -676,21 +676,21 @@ export default {
     },
     async callAIWithLocalContext(userMessage) {
       try {
-        // 准备消息历史
-        const history = this.messages.map(msg => ({
+        const localContext = this.getLocalContext()
+        const messages = this.messages.map(msg => ({
           role: msg.isUser ? 'user' : 'assistant',
           content: msg.text
         }))
+        messages.push({ role: 'user', content: userMessage })
         
-        // 调用后端API
-        const response = await fetch('http://localhost:3010/api/agent', {
+        const response = await fetch('http://localhost:3001/api/resume/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            message: userMessage,
-            history
+            localContext,
+            messages
           })
         })
         
@@ -699,7 +699,7 @@ export default {
         }
         
         const data = await response.json()
-        return data.response || data.fallback || this.getAgentResponse(userMessage)
+        return data.data?.response || this.getAgentResponse(userMessage)
       } catch (error) {
         console.warn('无法连接到AI服务，使用本地响应:', error)
         return this.getAgentResponse(userMessage)

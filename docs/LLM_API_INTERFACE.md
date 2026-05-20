@@ -5,7 +5,7 @@
 ## 1) 聊天接口
 
 - 方法: `POST`
-- 路径: `/api/chat`
+- 路径: `/api/resume/chat`
 - 说明: 通用对话接口，支持携带本地资料上下文。
 
 ### 请求体
@@ -39,7 +39,7 @@
 ### curl 示例
 
 ```bash
-curl -X POST "http://localhost:3001/api/chat" \
+curl -X POST "http://localhost:3001/api/resume/chat" \
   -H "Content-Type: application/json" \
   -d '{
     "messages":[{"role":"user","content":"请帮我完善简历"}],
