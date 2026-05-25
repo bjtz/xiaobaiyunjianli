@@ -30,6 +30,61 @@ const schoolData = {
 // 本地存储模拟（实际项目中可使用数据库）
 let importDataStore = null;
 
+// 模拟对话历史存储
+let chatHistoryStore = [
+  {
+    id: '1',
+    roomId: 'room001',
+    type: 'resume',
+    userId: 1,
+    userMessage: '你好',
+    aiResponse: '您好！我是小白云简历生成助手，很高兴为您服务！',
+    extraContext: '姓名：张三，学校：广东白云学院',
+    createdAt: '2026-05-20T10:00:00Z'
+  },
+  {
+    id: '2',
+    roomId: 'room001',
+    type: 'resume',
+    userId: 1,
+    userMessage: '帮我生成一份简历',
+    aiResponse: '好的！根据您的资料，我已经为您生成了一份专业的简历...',
+    extraContext: '姓名：张三，学校：广东白云学院，专业：计算机科学与技术',
+    createdAt: '2026-05-20T10:05:00Z'
+  },
+  {
+    id: '3',
+    roomId: 'room002',
+    type: 'expand',
+    userId: 2,
+    userMessage: '帮我扩写项目经历',
+    aiResponse: '根据您的项目经历描述，我为您扩写如下...',
+    extraContext: '项目：电商平台开发',
+    createdAt: '2026-05-21T14:30:00Z'
+  }
+];
+
+app.get('/api/resume/history', (req, res) => {
+  try {
+    const { roomId, type } = req.query;
+    
+    let history = [...chatHistoryStore];
+    
+    if (roomId) {
+      history = history.filter(item => item.roomId === roomId);
+    }
+    
+    if (type) {
+      history = history.filter(item => item.type === type);
+    }
+    
+    res.json({ code: 0, data: history, message: '' });
+  } catch (error) {
+    console.error('获取对话历史失败:', error);
+    res.status(500).json({ code: 500, data: [], message: '获取对话历史失败' });
+  }
+});
+
 app.post('/api/resume/chat', async (req, res) => {
   try {
     const { messages, localContext } = req.body;
