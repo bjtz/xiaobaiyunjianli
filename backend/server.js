@@ -30,6 +30,12 @@ const schoolData = {
 // 本地存储模拟（实际项目中可使用数据库）
 let importDataStore = null;
 
+// 智能体风格设置存储
+let agentStyleStore = null;
+
+// 对话房间存储
+let roomStore = [];
+
 // 模拟对话历史存储
 let chatHistoryStore = [
   {
@@ -85,13 +91,185 @@ app.get('/api/resume/history', (req, res) => {
   }
 });
 
+app.post('/api/resume/agent', async (req, res) => {
+  try {
+    const { history, message, roomId } = req.body;
+    
+    console.log('收到智能体对话请求');
+    console.log('roomId:', roomId);
+    console.log('用户消息:', message);
+    console.log('历史记录条数:', history?.length || 0);
+    
+    if (!roomId) {
+      return res.status(400).json({ code: 400, data: {}, message: 'roomId不能为空' });
+    }
+    
+    let systemPrompt = `你是小白云简历生成助手，一个专业的AI助手，专门为用户提供简历生成服务。
+
+你需要：
+1. 根据用户导入的本地资料来回答问题
+2. 如果没有本地资料，使用你的专业知识
+3. 保持友好、专业的语气
+4. 专注于简历相关的问题
+`;
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...(history || []),
+      { role: 'user', content: message }
+    ];
+
+    let response;
+    
+    // 优先使用智谱AI
+    if (process.env.ZHIPUAI_API_KEY && process.env.ZHIPUAI_API_KEY !== 'your_zhipuai_api_key_here') {
+      console.log('正在调用智谱AI...');
+      response = await callZhipuAI(messages);
+      console.log('智谱AI调用成功');
+    } else if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here') {
+      console.log('正在调用OpenAI...');
+      response = await callOpenAI(messages);
+      console.log('OpenAI调用成功');
+    } else {
+      console.log('使用本地响应（未配置API密钥）');
+      response = generateLocalResponse(messages, null);
+    }
+
+    // 移除所有Markdown格式的星号
+    response = response.replace(/\*\*(.*?)\*\*/g, '$1');
+
+    // 保存对话历史
+    const record = {
+      id: Date.now().toString(),
+      roomId: roomId,
+      type: 'resume',
+      userId: 1,
+      userMessage: message,
+      aiResponse: response,
+      extraContext: '',
+      createdAt: new Date().toISOString()
+    };
+    chatHistoryStore.push(record);
+
+    res.json({ code: 0, data: { response }, message: '' });
+  } catch (error) {
+    console.error('智能体对话失败:', error);
+    const fallback = generateLocalResponse([{ role: 'user', content: req.body.message }], null);
+    res.status(500).json({ 
+      code: 500,
+      data: { response: fallback },
+      message: '请求失败，请检查API配置'
+    });
+  }
+});
+
+app.post('/api/resume/agent-style', (req, res) => {
+  try {
+    const { styleId } = req.body;
+    
+    console.log('收到设置智能体风格请求');
+    console.log('styleId:', styleId);
+    
+    if (!styleId) {
+      return res.status(400).json({ code: 400, data: {}, message: 'styleId不能为空' });
+    }
+    
+    agentStyleStore = { styleId };
+    console.log('智能体风格设置成功');
+    
+    res.json({ code: 0, data: {}, message: '智能体风格设置成功' });
+  } catch (error) {
+    console.error('设置智能体风格失败:', error);
+    res.status(500).json({ code: 500, data: {}, message: '设置智能体风格失败' });
+  }
+});
+
+app.post('/api/resume/room', (req, res) => {
+  try {
+    console.log('收到创建新对话房间请求');
+    
+    const roomId = 'room_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+    
+    const room = {
+      roomId: roomId,
+      createdAt: new Date().toISOString(),
+      userId: 1
+    };
+    
+    roomStore.push(room);
+    console.log('新对话房间创建成功:', roomId);
+    
+    res.json({ code: 0, data: { roomId }, message: '对话房间创建成功' });
+  } catch (error) {
+    console.error('创建对话房间失败:', error);
+    res.status(500).json({ code: 500, data: {}, message: '创建对话房间失败' });
+  }
+});
+
+app.get('/api/resume/agent-styles', (req, res) => {
+  try {
+    console.log('收到获取智能体风格列表请求');
+    
+    const styles = [
+      { styleId: 'professional', name: '专业正式', description: '适合商务场景，语气专业严谨' },
+      { styleId: 'friendly', name: '亲切友好', description: '适合日常对话，语气亲切自然' },
+      { styleId: 'humorous', name: '幽默风趣', description: '适合轻松场合，带有趣味性' },
+      { styleId: 'concise', name: '简洁精炼', description: '适合快速沟通，言简意赅' }
+    ];
+    
+    res.json({ code: 0, data: { styles }, message: '' });
+  } catch (error) {
+    console.error('获取智能体风格列表失败:', error);
+    res.status(500).json({ code: 500, data: {}, message: '获取智能体风格列表失败' });
+  }
+});
+
+app.post('/api/resume/custom-agent-style', (req, res) => {
+  try {
+    const { styleId, name, description, responses } = req.body;
+    
+    console.log('收到添加自定义智能体风格请求');
+    console.log('styleId:', styleId);
+    console.log('name:', name);
+    console.log('description:', description);
+    console.log('responses:', responses);
+    
+    if (!styleId) {
+      return res.status(400).json({ code: 400, data: {}, message: 'styleId不能为空' });
+    }
+    
+    if (!name) {
+      return res.status(400).json({ code: 400, data: {}, message: 'name不能为空' });
+    }
+    
+    const customStyle = {
+      styleId: styleId,
+      name: name,
+      description: description || '',
+      responses: responses || {}
+    };
+    
+    console.log('自定义智能体风格添加成功');
+    
+    res.json({ code: 0, data: customStyle, message: '自定义智能体风格添加成功' });
+  } catch (error) {
+    console.error('添加自定义智能体风格失败:', error);
+    res.status(500).json({ code: 500, data: {}, message: '添加自定义智能体风格失败' });
+  }
+});
+
 app.post('/api/resume/chat', async (req, res) => {
   try {
-    const { messages, localContext } = req.body;
+    const { messages, localContext, roomId } = req.body;
     
     console.log('收到聊天请求');
+    console.log('roomId:', roomId);
     console.log('用户消息:', messages[messages.length - 1]?.content);
     console.log('本地资料:', localContext ? '有资料' : '无资料');
+    
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ code: 400, data: {}, message: 'messages不能为空' });
+    }
     
     let systemPrompt = `你是小白云简历生成助手，一个专业的AI助手，专门为用户提供简历生成服务。
 
@@ -128,6 +306,21 @@ ${localContext || '暂无本地资料'}
 
     // 移除所有Markdown格式的星号
     response = response.replace(/\*\*(.*?)\*\*/g, '$1');
+
+    // 如果提供了roomId，保存对话历史
+    if (roomId) {
+      const record = {
+        id: Date.now().toString(),
+        roomId: roomId,
+        type: 'resume',
+        userId: 1,
+        userMessage: messages[messages.length - 1]?.content || '',
+        aiResponse: response,
+        extraContext: localContext || '',
+        createdAt: new Date().toISOString()
+      };
+      chatHistoryStore.push(record);
+    }
 
     res.json({ code: 0, data: { response }, message: '' });
   } catch (error) {
@@ -259,6 +452,103 @@ app.get('/api/resume/import-data', (req, res) => {
   }
 });
 
+app.post('/api/resume/user-data/websites', (req, res) => {
+  try {
+    const { websites } = req.body;
+    
+    console.log('收到保存用户网站请求');
+    console.log('网站列表:', websites);
+    
+    if (!websites || !Array.isArray(websites)) {
+      return res.status(400).json({ code: 400, data: {}, message: 'websites必须是数组' });
+    }
+    
+    console.log('用户网站保存成功');
+    
+    res.json({ code: 0, data: {}, message: '网站保存成功' });
+  } catch (error) {
+    console.error('保存用户网站失败:', error);
+    res.status(500).json({ code: 500, data: {}, message: '保存用户网站失败' });
+  }
+});
+
+app.post('/api/resume/user-data/profile', (req, res) => {
+  try {
+    const { name, email, phone, birthDate, education, ethnicity, height, location, politicalStatus } = req.body;
+    
+    console.log('收到保存用户资料请求');
+    console.log('姓名:', name);
+    console.log('邮箱:', email);
+    console.log('电话:', phone);
+    
+    console.log('用户资料保存成功');
+    
+    res.json({ code: 0, data: {}, message: '资料保存成功' });
+  } catch (error) {
+    console.error('保存用户资料失败:', error);
+    res.status(500).json({ code: 500, data: {}, message: '保存用户资料失败' });
+  }
+});
+
+app.post('/api/resume/user-data/bookmarks', (req, res) => {
+  try {
+    const { bookmarks } = req.body;
+    
+    console.log('收到保存用户书签请求');
+    console.log('书签列表:', bookmarks);
+    
+    if (!bookmarks || !Array.isArray(bookmarks)) {
+      return res.status(400).json({ code: 400, data: {}, message: 'bookmarks必须是数组' });
+    }
+    
+    console.log('用户书签保存成功');
+    
+    res.json({ code: 0, data: {}, message: '书签保存成功' });
+  } catch (error) {
+    console.error('保存用户书签失败:', error);
+    res.status(500).json({ code: 500, data: {}, message: '保存用户书签失败' });
+  }
+});
+
+app.post('/api/resume/user-data/accounts', (req, res) => {
+  try {
+    const { accounts } = req.body;
+    
+    console.log('收到保存用户账号请求');
+    console.log('账号列表:', accounts);
+    
+    if (!accounts || !Array.isArray(accounts)) {
+      return res.status(400).json({ code: 400, data: {}, message: 'accounts必须是数组' });
+    }
+    
+    console.log('用户账号保存成功');
+    
+    res.json({ code: 0, data: {}, message: '账号保存成功' });
+  } catch (error) {
+    console.error('保存用户账号失败:', error);
+    res.status(500).json({ code: 500, data: {}, message: '保存用户账号失败' });
+  }
+});
+
+app.get('/api/resume/user-data', (req, res) => {
+  try {
+    console.log('收到获取用户资料请求');
+    
+    const userData = {
+      id: 1,
+      name: '张三',
+      email: 'zhangsan@example.com',
+      phone: '13800138000',
+      createdAt: new Date().toISOString()
+    };
+    
+    res.json({ code: 0, data: userData, message: '' });
+  } catch (error) {
+    console.error('获取用户资料失败:', error);
+    res.status(500).json({ code: 500, data: {}, message: '获取用户资料失败' });
+  }
+});
+
 app.delete('/api/resume/import-data', (req, res) => {
   try {
     importDataStore = null;
@@ -311,14 +601,107 @@ app.get('/api/resume/majors', (req, res) => {
   }
 });
 
+// 生成简历API
+app.post('/api/resume/generate', async (req, res) => {
+  try {
+    const { name, company, position, education, experience, skills } = req.body;
+    
+    console.log('收到生成简历请求');
+    console.log('姓名:', name);
+    console.log('目标公司:', company);
+    console.log('应聘岗位:', position);
+    console.log('教育背景:', education);
+    console.log('工作经历:', experience);
+    console.log('技能:', skills);
+    
+    let systemPrompt = `你是小白云简历生成助手，专门为用户生成专业的简历。
+
+你需要：
+1. 根据用户提供的信息生成完整的简历
+2. 保持专业、正式的语气
+3. 结构化输出，便于用户直接使用
+4. 突出用户的优势和亮点
+
+用户信息：
+姓名：${name || '未提供'}
+目标公司：${company || '未提供'}
+应聘岗位：${position || '未提供'}
+教育背景：${education || '未提供'}
+工作经历：${experience || '未提供'}
+技能：${skills || '未提供'}
+`;
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: '请帮我生成一份专业的简历' }
+    ];
+
+    let response;
+    
+    // 优先使用智谱AI
+    if (process.env.ZHIPUAI_API_KEY && process.env.ZHIPUAI_API_KEY !== 'your_zhipuai_api_key_here') {
+      console.log('正在调用智谱AI生成简历...');
+      response = await callZhipuAI(messages);
+      console.log('智谱AI简历生成成功');
+    } else if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here') {
+      console.log('正在调用OpenAI生成简历...');
+      response = await callOpenAI(messages);
+      console.log('OpenAI简历生成成功');
+    } else {
+      console.log('使用本地响应生成简历');
+      response = generateLocalResume(name, company, position, education, experience, skills);
+    }
+
+    // 移除所有Markdown格式的星号
+    response = response.replace(/\*\*(.*?)\*\*/g, '$1');
+
+    res.json({ code: 0, data: { response }, message: '' });
+  } catch (error) {
+    console.error('生成简历失败:', error);
+    const { name, company, position, education, experience, skills } = req.body;
+    const fallback = generateLocalResume(name, company, position, education, experience, skills);
+    res.status(500).json({ 
+      code: 500,
+      data: { response: fallback },
+      message: '生成简历失败，请检查API配置'
+    });
+  }
+});
+
+function generateLocalResume(name = '未提供', company = '未提供', position = '未提供', education = '未提供', experience = '未提供', skills = '未提供') {
+  return `个人简历 | Personal Resume
+
+基本信息
+姓名：${name}
+应聘岗位：${position}
+目标公司：${company}
+
+教育背景
+${education || '请填写您的教育背景信息'}
+
+工作经历
+${experience || '请填写您的工作经历信息'}
+
+专业技能
+${skills || '请填写您的专业技能'}
+
+自我评价
+根据您提供的信息，我已为您生成了这份专业简历。如有需要，您可以进一步补充详细信息，我将为您优化简历内容！`;
+}
+
 // 智能扩写API
 app.post('/api/resume/expand-resume', async (req, res) => {
   try {
-    const { message, localContext } = req.body;
+    const { message, localContext, roomId } = req.body;
     
     console.log('收到简历扩写请求');
+    console.log('roomId:', roomId);
     console.log('用户消息:', message);
     console.log('本地资料:', localContext ? '有资料' : '无资料');
+    
+    if (!message) {
+      return res.status(400).json({ code: 400, data: {}, message: 'message不能为空' });
+    }
     
     let systemPrompt = `你是小白云简历生成助手，专门负责根据用户的个人资料扩写简历内容。
 
@@ -356,6 +739,21 @@ ${localContext || '暂无本地资料'}
 
     // 移除所有Markdown格式的星号
     response = response.replace(/\*\*(.*?)\*\*/g, '$1');
+
+    // 如果提供了roomId，保存对话历史
+    if (roomId) {
+      const record = {
+        id: Date.now().toString(),
+        roomId: roomId,
+        type: 'expand',
+        userId: 1,
+        userMessage: message,
+        aiResponse: response,
+        extraContext: localContext || '',
+        createdAt: new Date().toISOString()
+      };
+      chatHistoryStore.push(record);
+    }
 
     res.json({ code: 0, data: { response }, message: '' });
   } catch (error) {
